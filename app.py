@@ -2763,21 +2763,6 @@ elif page == "Data Readiness":
 
 
 # ============================================================
-# FOOTER
-# ============================================================
-
-st.sidebar.divider()
-
-st.sidebar.caption(
-    "PriceIQ | Customer Proof of Concept"
-)
-
-st.sidebar.caption(
-    "Pricing Intelligence & Margin Governance"
-)
-
-
-# ============================================================
 # UPLOADED DATA PREVIEW
 # ============================================================
 
@@ -2825,3 +2810,19 @@ elif page == "Uploaded Data Preview":
         "priceiq_normalized_agreements.csv",
         "Download normalized data",
     )
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.sidebar.divider()
+
+st.sidebar.caption(
+    "PriceIQ | Customer Proof of Concept"
+)
+
+st.sidebar.caption(
+    "Pricing Intelligence & Margin Governance"
+)
+
+
