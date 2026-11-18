@@ -327,42 +327,73 @@ def load_data(file_path, modified_time):
     return normalize_dataframe(df)
 
 
-data_file = find_data_file()
+# ============================================================
+# DATA SOURCE: MULTI-FILE UPLOAD OR REPOSITORY DEFAULT
+# ============================================================
 
-if data_file is None:
-    st.error(
-        "Could not find customer_agreements.csv. "
-        "Please place it inside the data folder."
-    )
+st.sidebar.markdown("### Data source")
+uploaded_files = st.sidebar.file_uploader(
+    "Upload agreement data (CSV or Excel)",
+    type=["csv", "xlsx", "xls"],
+    accept_multiple_files=True,
+    help="Upload one or more SAP agreement extracts. Uploaded files are used for this session only.",
+)
 
-    st.code(
-        """
-        PriceIQ/
-        ├── app.py
-        ├── requirements.txt
-        └── data/
-            └── customer_agreements.csv
-        """,
-        language="text",
-    )
-
-    st.stop()
-
+def read_uploaded_agreement(uploaded_file):
+    name = uploaded_file.name.lower()
+    if name.endswith(".csv"):
+        frame = pd.read_csv(uploaded_file, low_memory=False)
+    else:
+        frame = pd.read_excel(uploaded_file)
+    if frame.empty:
+        raise ValueError(f"{uploaded_file.name} contains no rows.")
+    normalized = normalize_dataframe(frame)
+    normalized["source_file"] = uploaded_file.name
+    return normalized
 
 try:
-    raw_df = load_data(
-        str(data_file),
-        data_file.stat().st_mtime,
-    )
-
+    if uploaded_files:
+        frames = []
+        for uploaded_file in uploaded_files:
+            try:
+                frames.append(read_uploaded_agreement(uploaded_file))
+            except Exception as upload_error:
+                st.sidebar.error(f"{uploaded_file.name}: {upload_error}")
+        if not frames:
+            st.error("None of the uploaded files could be read. Check the file format and column headers.")
+            st.stop()
+        raw_df = pd.concat(frames, ignore_index=True)
+        raw_df = raw_df.reset_index(drop=True)
+        raw_df["_row_id"] = np.arange(len(raw_df))
+        st.sidebar.success(
+            f"Using {len(uploaded_files)} uploaded file(s), {len(raw_df):,} rows."
+        )
+        st.sidebar.caption("Uploads are session-only and are not saved to the repository.")
+    else:
+        data_file = find_data_file()
+        if data_file is None:
+            st.info(
+                "Upload one or more SAP agreement extracts in the sidebar to get started. "
+                "You can also add data/customer_agreements.csv to the repository."
+            )
+            st.stop()
+        raw_df = load_data(str(data_file), data_file.stat().st_mtime)
+        raw_df["source_file"] = data_file.name
+        st.sidebar.caption(f"Using repository data: {data_file.name}")
 except Exception as error:
     st.error(f"Unable to load agreement data: {error}")
     st.stop()
 
-
 if raw_df.empty:
     st.warning("The agreement dataset is empty.")
     st.stop()
+
+# Basic data-quality context. Agreement values are source-maintained values,
+# not verified realized transaction prices or profitability measures.
+missing_values = int(raw_df["agreement_value"].isna().sum())
+if missing_values:
+    st.sidebar.warning(f"{missing_values:,} rows have no numeric agreement value.")
+
 
 
 # ============================================================
@@ -753,6 +784,7 @@ pages = [
     "Customer Profile",
     "Margin Guardrail Sandbox",
     "Data Readiness",
+    "Uploaded Data Preview",
 ]
 
 page = st.sidebar.radio(
@@ -2743,3 +2775,53 @@ st.sidebar.caption(
 st.sidebar.caption(
     "Pricing Intelligence & Margin Governance"
 )
+
+
+# ============================================================
+# UPLOADED DATA PREVIEW
+# ============================================================
+
+elif page == "Uploaded Data Preview":
+
+    show_page_header(
+        "Uploaded Data Preview",
+        "Inspect the normalized agreement records currently loaded in this session.",
+    )
+
+    st.caption(
+        "Uploaded files are held in Streamlit session memory only. "
+        "They are not written to GitHub or persisted by this application."
+    )
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Loaded rows", f"{len(raw_df):,}")
+    c2.metric("Customers", f"{raw_df['customer'].nunique():,}")
+    c3.metric("Materials", f"{raw_df['material'].nunique():,}")
+
+    if "source_file" in raw_df.columns:
+        st.subheader("Source files")
+        source_summary = (
+            raw_df.groupby("source_file", dropna=False)
+            .size()
+            .reset_index(name="Rows")
+            .sort_values("Rows", ascending=False)
+        )
+        st.dataframe(source_summary, hide_index=True, use_container_width=True)
+
+    st.subheader("Normalized data")
+    st.dataframe(raw_df.head(500), hide_index=True, use_container_width=True)
+
+    st.subheader("Column coverage")
+    coverage = pd.DataFrame({
+        "Column": raw_df.columns,
+        "Non-null rows": [int(raw_df[col].notna().sum()) for col in raw_df.columns],
+        "Missing rows": [int(raw_df[col].isna().sum()) for col in raw_df.columns],
+        "Data type": [str(raw_df[col].dtype) for col in raw_df.columns],
+    })
+    st.dataframe(coverage, hide_index=True, use_container_width=True)
+
+    display_download_button(
+        raw_df,
+        "priceiq_normalized_agreements.csv",
+        "Download normalized data",
+    )
