@@ -1,0 +1,4 @@
+customer,material,unit,agreement_value,valid_from,valid_to,region,district,agreement_type,agreement_id,currency,description
+CUST001,MAT100,EA,125.50,2026-01-01,2026-12-31,Region 1,District 33,ZAGR,DEMO0001,,Sample agreement row 1
+CUST002,MAT100,EA,119.00,2026-02-01,2026-11-30,Region 1,District 33,ZAGR,DEMO0002,,Sample agreement row 2
+CUST003,MAT200,5GL,245.00,2026-03-01,2027-02-28,Region 4,District 42,ZAGR,DEMO0003,,Sample agreement row 3
